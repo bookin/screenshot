@@ -1,0 +1,23 @@
+{
+  "name": "screenshots",
+  "version": "1.0.0",
+  "description": "",
+  "main": "screenshots.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bookin/screenshots.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/bookin/screenshots/issues"
+  },
+  "homepage": "https://github.com/bookin/screenshots#readme",
+  "dependencies": {
+    "chrome-remote-interface": "^0.24.4",
+    "sharp": "^0.18.2"
+  }
+}
