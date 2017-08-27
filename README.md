@@ -1,6 +1,6 @@
 Screenshot
 ============================
-Make screenshots by url
+Capture screenshots of websites
 
 ## Configuring a server
 
