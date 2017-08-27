@@ -1,6 +1,6 @@
 const chrome = require('chrome-remote-interface');
 const fs = require('fs');
-const sharp = require('sharp');  /*apt-get install build-essential*/
+const sharp = require('sharp');
 
 class Screenshot {
 
@@ -8,6 +8,7 @@ class Screenshot {
         this.defaultSize = {'default':[1280, 1024]};
         this.defaultPath = './tmp';
         this.images = {};
+        this.try = 0;
     }
 
     setWait(time){
@@ -52,137 +53,163 @@ class Screenshot {
         return this._filepath;
     }
 
-    shot(url, callback){
+    async makeScreenshots(client, url, callback) {
         const wait = this.wait || 0;
         const sizes = this.sizes || [this.defaultSize];
         const path = this.filepath || this.defaultPath;
         const resizes = this.resizes;
 
-        //let images = [];
-        chrome(async (client) => {
-            const {Emulation, Page, Runtime} = client;
+        const {Emulation, Page, Runtime} = client;
 
-            try {
-                await Page.enable();
-                await Page.navigate({url: url});
-                await Page.loadEventFired();
+        try {
+            await Page.enable();
+            await Page.navigate({url: url});
+            await Page.loadEventFired();
 
-                let promise = new Promise((resolve, reject) => {
-                    setTimeout(async ()=>{
-                        const deviceMetrics = {
-                            deviceScaleFactor: 0,
-                            mobile: false,
-                            fitWindow: false,
-                        };
+            let promise = new Promise((resolve, reject) => {
+                setTimeout(async ()=>{
+                    const deviceMetrics = {
+                        deviceScaleFactor: 0,
+                        mobile: false,
+                        fitWindow: false,
+                    };
 
-                        for(let key in sizes){
-                            if (!sizes.hasOwnProperty(key)) continue;
+                    for(let key in sizes){
+                        if (!sizes.hasOwnProperty(key)) continue;
 
-                            let width = sizes[key][0];
-                            let height = sizes[key][1];
+                        let width = sizes[key][0];
+                        let height = sizes[key][1];
 
-                            deviceMetrics.width = width;
-                            deviceMetrics.height = height;
-                            await Emulation.setDeviceMetricsOverride(deviceMetrics);
-                            await Emulation.setVisibleSize({width: width, height: height});
+                        deviceMetrics.width = width;
+                        deviceMetrics.height = height;
+                        await Emulation.setDeviceMetricsOverride(deviceMetrics);
+                        await Emulation.setVisibleSize({width: width, height: height});
 
-                            const {data} = await Page.captureScreenshot({format:'jpeg',quality:75});
-                            let buffer = new Buffer(data, 'base64');
+                        const {data} = await Page.captureScreenshot({format:'jpeg',quality:75});
+                        let buffer = new Buffer(data, 'base64');
 
-                            let fileName = `${this.filename}-${key.toLowerCase()}.jpg`;
-                            let filePath = `${path}/${fileName}`;
+                        let fileName = `${this.filename}-${key.toLowerCase()}.jpg`;
+                        let filePath = `${path}/${fileName}`;
 
-                            this.images[key]={'name':fileName, 'path':filePath};
+                        this.images[key]={'name':fileName, 'path':filePath};
 
-                            if(resizes[key] !== undefined){
-                                sharp(buffer).resize(resizes[key][0], resizes[key][1]).toFile(filePath, (err) => {
-                                    if(err) { reject(err); }
-                                });
+                        if(resizes[key] !== undefined){
+                            sharp(buffer).resize(resizes[key][0], resizes[key][1]).toFile(filePath, (err) => {
+                                if(err) { reject(err); }
+                            });
 
-                                if(this.saveOriginal){
-                                    fileName = `${this.filename}-original-${key.toLowerCase()}.jpg`;
-                                    filePath = `${path}/${fileName}.jpg`;
-                                    this.images[key]['original'] = {'name':fileName, 'path':filePath};
-                                }
-                            }
-
-                            if(resizes[key] === undefined || this.saveOriginal){
-                                fs.writeFile(filePath, buffer, 'base64', (err) => {
-                                    if (err) { reject(err); }
-                                });
-                                /*fs.writeFileSync(filePath, buffer, {'encode':'base64'});*/
+                            if(this.saveOriginal){
+                                fileName = `${this.filename}-original-${key.toLowerCase()}.jpg`;
+                                filePath = `${path}/${fileName}.jpg`;
+                                this.images[key]['original'] = {'name':fileName, 'path':filePath};
                             }
                         }
 
-                        resolve();
-
-                    }, wait);
-                });
-
-                promise.then(
-                    result => {
-                        client.close();
-                        if(typeof callback === 'function'){
-                            callback(null, this.images);
-                        }
-                    },
-                    error => {
-                        client.close();
-                        if(typeof callback === 'function'){
-                            callback(error);
+                        if(resizes[key] === undefined || this.saveOriginal){
+                            fs.writeFile(filePath, buffer, 'base64', (err) => {
+                                if (err) { reject(err); }
+                            });
+                            /*fs.writeFileSync(filePath, buffer, {'encode':'base64'});*/
                         }
                     }
-                );
 
+                    resolve();
 
-            } catch (err) {
-                if(typeof callback === 'function'){
-                    callback(err);
+                }, wait);
+            });
+
+            promise.then(
+                result => {
+                    client.close();
+                    if(typeof callback === 'function'){
+                        callback(null, this.images);
+                    }
+                },
+                error => {
+                    client.close();
+                    if(typeof callback === 'function'){
+                        callback(error);
+                    }
                 }
-            } finally {}
-        }).on('error', this.chromeErrorHandler);
+            );
 
-        return this;
+
+        } catch (err) {
+            if(typeof callback === 'function'){
+                callback(err);
+            }
+        } finally {}
     }
 
-    chromeErrorHandler(err){
-        if (err.errno === undefined) err.errno = "Timeout expired";
-        const exec = require('child_process').exec;
-        function execute(command, callback){
-            exec(command, (error, stdout, stderr)=>{ callback(stdout);});
-        }
-        execute("ps ax | grep remote-debug", function(data) {
-            if(data.match(/remote-debug/g).length < 3) {
-                // relaunch chrome
-                const spawn = require('child_process').spawn;
-                spawn('/opt/google/chrome/chrome', [
-                    '--remote-debugging-port=9222',
-                    '--disable-translate',
-                    '--disable-extensions',
-                    '--disable-background-networking',
-                    '--safebrowsing-disable-auto-update',
-                    '--disable-sync',
-                    '--metrics-recording-only',
-                    '--disable-default-apps',
-                    '--no-first-run',
-                    '--disable-setuid-sandbox',
-                    '--window-size=1280x1012',
-                    '--disable-gpu',
-                    '--hide-scrollbars',
-                    '--headless',
-                    'about:blank',
-                ], {
-                    stdio: 'ignore', // piping all stdio to /dev/null
-                    detached: true
-                }).unref();
-            }
+    shot(url, callback){
+        chrome(async (client) => {
+            this.makeScreenshots(client, url, callback)
+        }).on('error', (err,any)=>{
+            this.chromeErrorHandler(err, (err)=>{
+                if(err){
+                    if(typeof callback === 'function'){
+                        callback(err);
+                    }
+                }else{
+                    this.shot(url, callback);
+                }
+            });
         });
+    }
 
-        execute('node '+process.argv[1]+' '+process.argv[2]+' '+process.argv[3], (data)=>{
-            this.shot(this.url, this.callback);
-        });
+    chromeErrorHandler(err, callback){
+        const exec = require('child_process').exec;
+        const execute = function(command, excallback){
+            exec(command, (error, stdout, stderr)=>{ excallback(stdout);});
+        }
+
+        if(this.try++ < 2){
+            execute("ps ax | grep remote-debug", function(data) {
+                if(data.match(/remote-debug/g).length < 3) {
+                    execute("which google-chromed", function(path) {
+                        if(!path){
+                            callback('We can`t find google-chrome');
+                            return;
+                        }
+                        path = path.split("\n");
+                        Screenshot.chromeRelaunch(path[0], ()=>{
+                            callback();
+                        });
+                    });
+                }
+            });
+        }else{
+            callback(err);
+        }
+    }
+
+    /* defulat path - /opt/google/chrome/chrome */
+    static chromeRelaunch(chromePath, callback){
+        const spawn = require('child_process').spawn;
+        let command = spawn(chromePath, [
+            '--remote-debugging-port=9222',
+            '--disable-translate',
+            '--disable-extensions',
+            '--disable-background-networking',
+            '--safebrowsing-disable-auto-update',
+            '--disable-sync',
+            '--metrics-recording-only',
+            '--disable-default-apps',
+            '--no-first-run',
+            '--disable-setuid-sandbox',
+            '--window-size=1280x1012',
+            '--disable-gpu',
+            '--hide-scrollbars',
+            '--headless',
+            'about:blank',
+        ], {
+            stdio: 'ignore', // piping all stdio to /dev/null
+            detached: true
+        }).unref();
+        setTimeout(()=>{
+            callback()
+        }, 2000);
     }
 }
 
 module.exports = Screenshot;
-
