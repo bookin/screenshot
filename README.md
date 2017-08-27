@@ -2,6 +2,8 @@ Screenshots
 ============================
 Capture screenshots of websites
 
+[![npm package](https://nodei.co/npm/screenshots.png?downloads=true&downloadRank=true&stars=true)](https://nodei.co/npm/screenshots/)
+
 ## Configuring a server
 
 Install nodejs from [nvm](https://github.com/creationix/nvm):
