@@ -1,4 +1,4 @@
-Screenshot
+Screenshots
 ============================
 Capture screenshots of websites
 
