@@ -166,7 +166,7 @@ class Screenshot {
         if(this.try++ < 2){
             execute("ps ax | grep remote-debug", function(data) {
                 if(data.match(/remote-debug/g).length < 3) {
-                    execute("which google-chromed", function(path) {
+                    execute("which google-chrome", function(path) {
                         if(!path){
                             callback('We can`t find google-chrome');
                             return;
