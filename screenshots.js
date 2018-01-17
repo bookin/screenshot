@@ -186,6 +186,8 @@ class Screenshot {
     /* defulat path - /opt/google/chrome/chrome */
     static chromeRelaunch(chromePath, callback){
         const spawn = require('child_process').spawn;
+		var logStream = fs.createWriteStream('/var/log/pm2/spawn.log', {flags: 'a'});
+		
         let command = spawn(chromePath, [
             '--remote-debugging-port=9222',
             '--disable-translate',
@@ -201,11 +203,15 @@ class Screenshot {
             '--disable-gpu',
             '--hide-scrollbars',
             '--headless',
+			'--no-sandbox',
             'about:blank',
-        ], {
+        ]);/*, {
             stdio: 'ignore', // piping all stdio to /dev/null
             detached: true
-        }).unref();
+        }).unref();*/
+		command.stdout.pipe(logStream);
+		command.stderr.pipe(logStream);
+
         setTimeout(()=>{
             callback()
         }, 2000);
